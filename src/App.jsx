@@ -4,6 +4,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
+// ─── Backend API ─────────────────────────────────────────────────
+const API = "https://pocketiq-api.onrender.com";
+
 // ─── Error Boundary ──────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
   constructor(p) { super(p); this.state = { err: null }; }
@@ -107,34 +110,81 @@ function StatCard({ icon, label, value, sub }) {
 
 // ─── Login Screen ────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
-  const [name, setName] = useState("");
-  const [key,  setKey]  = useState("");
+  const [mode,     setMode]     = useState("login");
+  const [name,     setName]     = useState("");
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [key,      setKey]      = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+
+  const submit = async () => {
+    if (!email.trim()||!password.trim()) { setError("Email and password are required."); return; }
+    if (mode==="signup"&&!name.trim())   { setError("Name is required."); return; }
+    setLoading(true); setError("");
+    try {
+      const res  = await fetch(`${API}/api/auth/${mode}`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ name:name.trim(), email:email.trim(), password }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); setLoading(false); return; }
+      onLogin(data.name, key.trim(), false, data.token);
+    } catch {
+      setError("Cannot reach server — try again."); setLoading(false);
+    }
+  };
+
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#fff8f0,#ffefd5)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:"#fff", borderRadius:20, padding:"44px 40px", width:420, boxShadow:"0 8px 40px #0000001a" }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
+      <div style={{ background:"#fff", borderRadius:20, padding:"44px 40px", width:440, boxShadow:"0 8px 40px #0000001a" }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
           <div style={{ fontSize:42, marginBottom:8 }}>💰</div>
           <div style={{ fontWeight:700, fontSize:28, color:"#1a1a2e" }}>Pocket<span style={{ color:"#f97316" }}>IQ</span></div>
           <div style={{ color:"#94a3b8", fontSize:13, marginTop:4 }}>Smart spending, smarter decisions</div>
         </div>
+        <div style={{ display:"flex", background:"#f8f5f1", borderRadius:12, padding:4, marginBottom:20 }}>
+          {["login","signup"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setError("");}}
+              style={{ flex:1, background:mode===m?"#fff":"transparent", border:"none", borderRadius:10, padding:"8px 0",
+                fontWeight:700, fontSize:13, color:mode===m?"#f97316":"#94a3b8", cursor:"pointer",
+                boxShadow:mode===m?"0 1px 6px #0000001a":"none" }}>
+              {m==="login"?"Log In":"Sign Up"}
+            </button>
+          ))}
+        </div>
+        {mode==="signup" && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Your name</div>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Vishal"
+              style={{ width:"100%", border:"2px solid #f0ece6", borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none" }} />
+          </div>
+        )}
         <div style={{ marginBottom:14 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Your name</div>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Alex" onKeyDown={e=>e.key==="Enter"&&name.trim()&&onLogin(name.trim(),key.trim(),false)}
+          <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Email</div>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" type="email"
+            style={{ width:"100%", border:"2px solid #f0ece6", borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none" }} />
+        </div>
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>Password</div>
+          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" type="password"
+            onKeyDown={e=>e.key==="Enter"&&submit()}
             style={{ width:"100%", border:"2px solid #f0ece6", borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none" }} />
         </div>
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>
-            Groq API Key <span style={{ fontWeight:400, color:"#94a3b8" }}>(free at console.groq.com)</span>
+            Groq API Key <span style={{ fontWeight:400, color:"#94a3b8" }}>(optional — free at console.groq.com)</span>
           </div>
           <input value={key} onChange={e=>setKey(e.target.value)} placeholder="gsk_..." type="password"
             style={{ width:"100%", border:"2px solid #f0ece6", borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none" }} />
         </div>
-        <button onClick={()=>name.trim()&&onLogin(name.trim(),key.trim(),false)}
-          style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", borderRadius:12, padding:"12px 0", fontWeight:700, fontSize:16, cursor:"pointer", boxShadow:"0 4px 16px #f9731640" }}>
-          Get Started
+        {error && <div style={{ background:"#fff0f0", border:"1px solid #fecaca", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#ef4444", marginBottom:14 }}>{error}</div>}
+        <button onClick={submit} disabled={loading}
+          style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", borderRadius:12, padding:"12px 0", fontWeight:700, fontSize:16, cursor:"pointer", boxShadow:"0 4px 16px #f9731640", opacity:loading?0.7:1 }}>
+          {loading?"Please wait…":mode==="login"?"Log In":"Create Account"}
         </button>
         <div style={{ textAlign:"center", marginTop:14 }}>
-          <span onClick={()=>onLogin("Demo User","",true)}
+          <span onClick={()=>onLogin("Demo User","",true,null)}
             style={{ color:"#f97316", fontSize:13, cursor:"pointer", fontWeight:700 }}>
             ▶ Try with demo data
           </span>
@@ -186,33 +236,22 @@ function EntryModal({ initial, onSave, onClose }) {
 }
 
 // ─── Receipt Scanner ──────────────────────────────────────────────
-function ReceiptScanner({ apiKey, onResult, onClose }) {
-  const [status, setStatus] = useState("idle");
-  const scan = async (file) => {
-    if (!apiKey) { alert("An API key is required for receipt scanning."); return; }
-    setStatus("scanning");
-    try {
-      const b64 = await new Promise(res => { const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.readAsDataURL(file); });
-      const res  = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{ "Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
-        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:300, messages:[{ role:"user", content:[
-          { type:"image", source:{ type:"base64", media_type:file.type, data:b64 } },
-          { type:"text",  text:`Read this receipt. Reply ONLY in JSON, no markdown: {"amount":0,"title":"","tag":"Food","date":null}. Tag must be one of: ${TAGS.join(",")}` }
-        ]}]}),
-      });
-      const data = await res.json();
-      const p = JSON.parse(data.content[0].text.replace(/```json|```/g,"").trim());
-      onResult({ id:uid(), title:p.title||"Receipt", tag:p.tag||"Other", amount:p.amount||0, date:p.date||today(), method:"card", note:"Scanned" });
-    } catch { setStatus("error"); }
-  };
+function ReceiptScanner({ onClose }) {
   return (
-    <div style={{ background:"#fff7ed", border:"2px dashed #f97316", borderRadius:14, padding:24, marginBottom:16, textAlign:"center" }}>
-      <div style={{ fontSize:32, marginBottom:8 }}>📷</div>
-      <div style={{ fontWeight:700, color:"#1a1a2e", marginBottom:8 }}>
-        {status==="idle" ? "Upload a receipt photo" : status==="scanning" ? "Reading receipt…" : "⚠️ Failed — try a clearer photo"}
+    <div style={{ background:"#fff7ed", border:"2px dashed #f97316", borderRadius:14, padding:28, marginBottom:16, textAlign:"center" }}>
+      <div style={{ fontSize:36, marginBottom:10 }}>🔑</div>
+      <div style={{ fontWeight:700, color:"#9a3412", fontSize:14, marginBottom:8 }}>Receipt Scan needs Anthropic API</div>
+      <div style={{ fontSize:12, color:"#64748b", marginBottom:6, lineHeight:1.6 }}>
+        This feature uses <b>Claude Vision AI</b> to read receipt photos.<br/>
+        It requires an <b>Anthropic API key</b> with credits — not Groq.
       </div>
-      <input type="file" accept="image/*" onChange={e=>e.target.files[0]&&scan(e.target.files[0])} style={{ display:"block", margin:"0 auto 10px" }} />
-      <button onClick={onClose} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13 }}>Cancel</button>
+      <div style={{ background:"#fff", border:"1px solid #f0ece6", borderRadius:10, padding:"10px 16px", display:"inline-block", marginBottom:12, fontSize:12, color:"#475569" }}>
+        <b>To enable:</b> Go to console.anthropic.com → Add $5 credits → Log out of PocketIQ → Log back in with your Anthropic key (sk-ant-...)
+      </div>
+      <div style={{ fontSize:11, color:"#94a3b8", marginBottom:10 }}>
+        ✅ AI Chat works fine with your free Groq key
+      </div>
+      <button onClick={onClose} style={{ background:"#f97316", color:"#fff", border:"none", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontWeight:700, fontSize:13 }}>Got it</button>
     </div>
   );
 }
@@ -324,7 +363,7 @@ function EntriesTab({ entries, currency, filter, setFilter, onEdit, onDelete, on
         </select>
         <span style={{ fontSize:13, color:"#94a3b8", alignSelf:"center" }}>{visible.length} entries · {fmtAmt(visible.reduce((s,e)=>s+e.amount,0),currency)}</span>
       </div>
-      {scanOpen && <ReceiptScanner apiKey={apiKey} onResult={d=>{setScanOpen(false);onAddScanned(d);}} onClose={()=>setScanOpen(false)}/>}
+      {scanOpen && <ReceiptScanner onClose={()=>setScanOpen(false)}/>}
       <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
         {visible.length===0 && <div style={{ textAlign:"center", color:"#94a3b8", padding:48 }}>No entries found.</div>}
         {visible.map(e=>(
@@ -582,6 +621,7 @@ function PocketIQ() {
   const [authed,   setAuthed]   = useState(false);
   const [username, setUsername] = useState("");
   const [apiKey,   setApiKey]   = useState("");
+  const [token,    setToken]    = useState("");
   const [entries,  setEntries]  = useState([]);
   const [wallets,  setWallets]  = useState([
     { id:uid(), name:"Food & Dining",  tag:"Food",          limitUsd:300 },
@@ -605,35 +645,58 @@ function PocketIQ() {
     }
   },[]);
 
-  // Load persisted state
+  // Load persisted state + fetch entries from backend
   useEffect(()=>{
     (async()=>{
       try {
-        const u=await store.get("user");   if (u) { setUsername(u); setAuthed(true); }
-        const k=await store.get("apikey"); if (k) setApiKey(k);
-        const e=await store.get("entries"); if (e) setEntries(JSON.parse(e));
-        const w=await store.get("wallets"); if (w) setWallets(JSON.parse(w));
+        const u=await store.get("user");     if (u) setUsername(u);
+        const k=await store.get("apikey");   if (k) setApiKey(k);
+        const t=await store.get("token");
+        const w=await store.get("wallets");  if (w) setWallets(JSON.parse(w));
         const c=await store.get("currency"); if (c) setCurrency(c);
+        if (u && t) {
+          setToken(t); setAuthed(true);
+          // Load entries from MongoDB
+          const res = await fetch(`${API}/api/entries`, { headers:{ Authorization:`Bearer ${t}` } });
+          if (res.ok) { const data = await res.json(); setEntries(data.map(e=>({...e, id:e._id}))); }
+        }
       } catch {}
     })();
   },[]);
 
-  const saveE = (arr) => { setEntries(arr); store.set("entries",JSON.stringify(arr)); };
   const saveW = (arr) => { setWallets(arr); store.set("wallets",JSON.stringify(arr)); };
 
-  const mutate = (op, entry) => {
-    setEntries(prev=>{
-      const next = op==="add" ? [entry,...prev] : op==="update" ? prev.map(e=>e.id===entry.id?entry:e) : prev.filter(e=>e.id!==entry.id);
-      store.set("entries",JSON.stringify(next));
-      return next;
-    });
+  const mutate = async (op, entry) => {
+    const headers = { "Content-Type":"application/json", Authorization:`Bearer ${token}` };
+    try {
+      if (op==="add") {
+        const res  = await fetch(`${API}/api/entries`, { method:"POST", headers, body:JSON.stringify(entry) });
+        const saved = await res.json();
+        setEntries(prev=>[{...saved, id:saved._id}, ...prev]);
+      } else if (op==="update") {
+        const res  = await fetch(`${API}/api/entries/${entry.id}`, { method:"PUT", headers, body:JSON.stringify(entry) });
+        const saved = await res.json();
+        setEntries(prev=>prev.map(e=>e.id===entry.id?{...saved,id:saved._id}:e));
+      } else {
+        await fetch(`${API}/api/entries/${entry.id}`, { method:"DELETE", headers });
+        setEntries(prev=>prev.filter(e=>e.id!==entry.id));
+      }
+    } catch { alert("Could not save — check your connection."); }
   };
 
-  const handleLogin = async (name, key, demo) => {
+  const handleLogin = async (name, key, demo, tok) => {
     setUsername(name); setApiKey(key||"");
-    await store.set("user",name);
-    if (key) await store.set("apikey",key);
-    if (demo) saveE(DEMO);
+    await store.set("user", name);
+    if (key) await store.set("apikey", key);
+    if (tok) { setToken(tok); await store.set("token", tok); }
+    if (demo) { setEntries(DEMO); setAuthed(true); return; }
+    // Load entries from backend
+    if (tok) {
+      try {
+        const res = await fetch(`${API}/api/entries`, { headers:{ Authorization:`Bearer ${tok}` } });
+        if (res.ok) { const data = await res.json(); setEntries(data.map(e=>({...e,id:e._id}))); }
+      } catch {}
+    }
     setAuthed(true);
   };
 
@@ -701,7 +764,7 @@ function PocketIQ() {
         </select>
         <button onClick={()=>setModal("new")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", borderRadius:10, padding:"7px 15px", fontWeight:700, fontSize:13, cursor:"pointer" }}>+ Add Entry</button>
         <button onClick={()=>setChatOpen(x=>!x)} style={{ background:chatOpen?"#f97316":"#fff", color:chatOpen?"#fff":"#f97316", border:"2px solid #f97316", borderRadius:10, padding:"5px 12px", fontWeight:700, fontSize:13, cursor:"pointer" }}>💬 Ask IQ</button>
-        <div onClick={async()=>{await store.set("user","");setAuthed(false);setEntries([]);}} style={{ color:"#94a3b8", fontSize:12, cursor:"pointer" }} title="Log out">👤 {username}</div>
+        <div onClick={async()=>{await store.set("user","");await store.set("token","");setAuthed(false);setEntries([]);setToken("");}} style={{ color:"#94a3b8", fontSize:12, cursor:"pointer" }} title="Log out">👤 {username}</div>
       </div>
 
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
