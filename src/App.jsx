@@ -124,9 +124,9 @@ function LoginScreen({ onLogin }) {
         </div>
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:5 }}>
-            API Key <span style={{ fontWeight:400, color:"#94a3b8" }}>(optional — for AI chat)</span>
+            Groq API Key <span style={{ fontWeight:400, color:"#94a3b8" }}>(free at console.groq.com)</span>
           </div>
-          <input value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-..." type="password"
+          <input value={key} onChange={e=>setKey(e.target.value)} placeholder="gsk_..." type="password"
             style={{ width:"100%", border:"2px solid #f0ece6", borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none" }} />
         </div>
         <button onClick={()=>name.trim()&&onLogin(name.trim(),key.trim(),false)}
@@ -194,7 +194,7 @@ function ReceiptScanner({ apiKey, onResult, onClose }) {
     try {
       const b64 = await new Promise(res => { const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.readAsDataURL(file); });
       const res  = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{ "Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01" },
+        method:"POST", headers:{ "Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
         body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:300, messages:[{ role:"user", content:[
           { type:"image", source:{ type:"base64", media_type:file.type, data:b64 } },
           { type:"text",  text:`Read this receipt. Reply ONLY in JSON, no markdown: {"amount":0,"title":"","tag":"Food","date":null}. Tag must be one of: ${TAGS.join(",")}` }
@@ -489,22 +489,18 @@ function ChatPanel({ entries, currency, apiKey, onMutate, onClose }) {
 
   const send = async (text) => {
     if (!text.trim()||busy) return;
-    if (!apiKey) { setMsgs(m=>[...m,{role:"user",content:text},{role:"assistant",content:"⚠️ No API key — enter one on the login screen to use the AI chat."}]); setInput(""); return; }
+    if (!apiKey) { setMsgs(m=>[...m,{role:"user",content:text},{role:"assistant",content:"⚠️ No API key — get a FREE Groq key at console.groq.com and enter it on the login screen."}]); setInput(""); return; }
     const history=[...msgs,{role:"user",content:text}];
     setMsgs(history); setInput(""); setBusy(true);
     try {
       const sys=`You are the PocketIQ assistant. Today: ${today()}. Currency: ${currency}. Entries: ${eRef.current.length}. Tags: ${TAGS.join(", ")}. Be brief and friendly.`;
       let messages=history.slice(-14);
       for (let i=0;i<6;i++) {
-        const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST", headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"}, body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,system:sys,tools,messages}) });
+        const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{ method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey}, body:JSON.stringify({model:"llama-3.3-70b-versatile",max_tokens:800,messages:[{role:"system",content:sys},...messages.filter(m=>typeof m.content==="string")],temperature:0.7}) });
         const data=await res.json();
-        if (data.stop_reason==="tool_use") {
-          messages=[...messages,{role:"assistant",content:data.content}];
-          const results=data.content.filter(b=>b.type==="tool_use").map(t=>({type:"tool_result",tool_use_id:t.id,content:JSON.stringify(runTool(t.name,t.input))}));
-          messages=[...messages,{role:"user",content:results}];
-        } else {
-          setMsgs([...history,{role:"assistant",content:data.content.find(b=>b.type==="text")?.text||"Done!"}]); break;
-        }
+        if (data.error) { setMsgs([...history,{role:"assistant",content:"API Error: "+data.error.message}]); break; }
+        if (!data.choices||!data.choices[0]) { setMsgs([...history,{role:"assistant",content:"Bad response — check your Groq API key."}]); break; }
+        setMsgs([...history,{role:"assistant",content:data.choices[0].message.content||"Done!"}]); break;
       }
     } catch(err) { setMsgs([...history,{role:"assistant",content:"⚠️ Error: "+err.message}]); }
     setBusy(false);
